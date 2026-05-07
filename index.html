@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>劍與魔法：幻彩賽博宿命對決</title>
+    <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --p1-main: #ff007a;
+            --p1-glow: #ff5e91;
+            --p2-main: #00f2ff;
+            --p2-glow: #70faff;
+            --boss-main: #9d00ff;
+            --boss-glow: #bf5eff;
+            --bg-deep: #050512;
+            --space-hue: 280deg;
+            --current-color: var(--p1-main);
+        }
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: var(--bg-deep);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            color: #fff;
+            transition: filter 0.2s;
+        }
+
+        body.glitch-active { filter: contrast(1.2) saturate(1.5); }
+
+        .stage-background {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background: radial-gradient(circle at 50% 50%, hsl(var(--space-hue), 50%, 10%) 0%, #050512 100%);
+            overflow: hidden;
+            animation: space-hue-cycle 15s linear infinite;
+            transition: transform 0.3s cubic-bezier(0.2, 0, 0.2, 1);
+        }
+
+        @keyframes space-hue-cycle {
+            0% { --space-hue: 280deg; }
+            33% { --space-hue: 200deg; }
+            66% { --space-hue: 340deg; }
+            100% { --space-hue: 280deg; }
+        }
+
+        .sky-vfx {
+            position: absolute;
+            inset: 0;
+            background: 
+                radial-gradient(circle at 20% 30%, hsla(var(--space-hue), 100%, 50%, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, hsla(calc(var(--space-hue) + 120deg), 100%, 50%, 0.15) 0%, transparent 50%);
+            filter: blur(60px);
+        }
+
+        .actor-container {
+            position: absolute;
+            width: 100%; height: 100%;
+            perspective: 2000px;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .actor {
+            position: absolute;
+            width: 300px; height: 450px;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            filter: drop-shadow(0 0 20px rgba(0,0,0,0.8));
+        }
+
+        /* 默認位置 (PVP) */
+        .swordman { top: 20px; left: 20px; transform: rotateY(15deg) rotateX(5deg); }
+        .mage { bottom: 20px; right: 20px; transform: rotateY(160deg) rotateX(-5deg); }
+        .boss-actor { top: 20px; left: 20px; transform: rotateY(0deg); opacity: 0; }
+
+        /* PVE 模式下玩家背影效果 (右下) */
+        .pve-mode .player-actor {
+            top: auto; left: auto;
+            bottom: 20px; right: 20px;
+            transform: scaleX(-1) rotateY(30deg) rotateX(-10deg);
+            filter: drop-shadow(0 0 20px rgba(0,0,0,0.9)) brightness(0.7);
+        }
+        /* PVE 模式下魔王正對效果 (左上) */
+        .pve-mode .boss-actor {
+            top: 20px; left: 20px;
+            opacity: 1;
+            transform: rotateY(10deg);
+        }
+
+        /* 攻擊動畫：玩家從右下衝向左上，魔王從左上衝向右下 */
+        body.pve-mode.sw-attack .player-actor, 
+        body.pve-mode.mg-attack .player-actor { 
+            transform: translate(-35vw, -30vh) scaleX(-1) rotateY(30deg) scale(1.5); 
+            filter: drop-shadow(0 0 80px var(--current-color)) brightness(1.5);
+            z-index: 50;
+        }
+        body.pve-mode.boss-attack .boss-actor { 
+            transform: translate(35vw, 30vh) rotateY(10deg) scale(1.6); 
+            filter: drop-shadow(0 0 80px var(--boss-glow)) brightness(1.5);
+            z-index: 50;
+        }
+
+        /* PVP 攻擊動畫 */
+        body:not(.pve-mode).sw-attack .swordman { transform: translate(30vw, 25vh) rotateY(0deg) scale(1.5); }
+        body:not(.pve-mode).mg-attack .mage { transform: translate(-30vw, -25vh) rotateY(140deg) scale(1.5); }
+        
+        .actor-container div { z-index: 10; }
+        .sw-attack .swordman, .mg-attack .mage, .boss-attack .boss-actor { z-index: 50 !important; }
+
+        .sw-attack .stage-background, .mg-attack .stage-background, .boss-attack .stage-background { transform: scale(1.05); }
+
+        .shake-active .stage-background { animation: screen-shake 0.4s both; }
+        @keyframes screen-shake {
+            0%, 100% { transform: translate(0,0); }
+            10%, 30%, 50%, 70%, 90% { transform: translate(-8px, -4px); }
+            20%, 40%, 60%, 80% { transform: translate(8px, 4px); }
+        }
+
+        .game-container { position: relative; z-index: 100; display: flex; flex-direction: column; align-items: center; }
+        .vs-banner { display: flex; gap: 40px; margin-bottom: 20px; }
+        .player-info {
+            background: rgba(10, 10, 35, 0.8); padding: 12px 35px; border-radius: 40px;
+            border: 2px solid rgba(255,255,255,0.1); backdrop-filter: blur(15px);
+            transition: all 0.4s; font-weight: 900; letter-spacing: 2px; text-align: center;
+            min-width: 120px;
+        }
+        /* 選中狀態樣式 */
+        .p1-turn .p1-active { border-color: var(--current-color); box-shadow: 0 0 30px var(--current-color); transform: scale(1.1); }
+        .p2-turn .p2-active { border-color: var(--current-color); box-shadow: 0 0 30px var(--current-color); transform: scale(1.1); }
+
+        #game-board {
+            display: grid; gap: 10px; padding: 20px;
+            background: rgba(255,255,255,0.03); border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(20px);
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
+        }
+        .cell {
+            background: rgba(0,0,0,0.7); border-radius: 12px;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255,255,255,0.08); color: #fff; font-weight: 900;
+        }
+        .cell:hover:not(.occupied):not(.blocked) { 
+            background: rgba(255,255,255,0.1); 
+            box-shadow: 0 0 20px var(--current-color);
+            transform: translateY(-2px);
+        }
+        .cell.occupied.x { color: var(--p1-main); text-shadow: 0 0 20px var(--p1-glow); animation: cell-pop 0.4s both; }
+        .cell.occupied.o { color: var(--p2-main); text-shadow: 0 0 20px var(--p2-glow); animation: cell-pop 0.4s both; }
+        .cell.occupied.boss { color: var(--boss-main); text-shadow: 0 0 20px var(--boss-glow); animation: cell-pop 0.4s both; }
+        @keyframes cell-pop { 0% { transform: scale(0) rotate(-45deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+        
+        .cell.blocked::after { content: "封"; color: #ff0044; font-size: 1.2rem; filter: drop-shadow(0 0 5px #ff0044); }
+
+        .settings-toggle {
+            position: fixed; top: 30px; right: 30px; width: 55px; height: 55px;
+            background: rgba(255,255,255,0.05); border-radius: 18px;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer; z-index: 250; font-size: 1.6rem; border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px); transition: 0.3s;
+        }
+
+        .modal {
+            position: fixed; inset: 0; background: rgba(5,5,18,0.95);
+            display: none; justify-content: center; align-items: center; z-index: 500;
+            backdrop-filter: blur(10px);
+        }
+        .settings-card {
+            background: #0a0a1a; padding: 40px; border-radius: 32px; border: 2px solid var(--p1-main);
+            width: 340px; color: #fff;
+        }
+
+        .tape-container { position: fixed; width: 100%; height: 42px; background: rgba(0,0,0,0.85); display: flex; align-items: center; z-index: 80; overflow: hidden; border-top: 2px solid var(--current-color); border-bottom: 2px solid var(--current-color); transition: border-color 0.4s; }
+        .tape-top { top: 0; } .tape-bottom { bottom: 0; }
+        .tape-text { white-space: nowrap; animation: marquee 50s linear infinite; font-size: 0.95rem; font-weight: 800; letter-spacing: 1px; color: var(--current-color); opacity: 0.8; }
+        @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+        .constriction-layer { position: fixed; inset: 0; pointer-events: none; z-index: 40; display: flex; justify-content: center; align-items: center; }
+        .circle-vfx { 
+            width: 700px; height: 700px; 
+            border: 8px solid var(--current-color); 
+            border-radius: 50%; 
+            opacity: 0; 
+            box-shadow: 0 0 60px var(--current-color), inset 0 0 60px var(--current-color);
+        }
+        .active-timer .circle-vfx { animation: shrink-energy 5s cubic-bezier(0.4, 0, 1, 1) forwards; }
+        @keyframes shrink-energy { 
+            0% { transform: scale(1.8); opacity: 0; border-width: 20px; } 
+            100% { transform: scale(0.05); opacity: 0; border-width: 2px; } 
+        }
+
+        #countdown-number {
+            position: fixed; font-size: 12rem; font-weight: 900;
+            color: var(--current-color); opacity: 0; pointer-events: none;
+            z-index: 45; text-shadow: 0 0 40px var(--current-color);
+        }
+        .active-timer #countdown-number { animation: num-pulse 1s linear infinite; }
+        @keyframes num-pulse { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1.5); opacity: 0; } }
+
+        .hit-spark { position: fixed; width: 200px; height: 200px; background: radial-gradient(circle, #fff 0%, var(--current-color) 30%, transparent 70%); border-radius: 50%; pointer-events: none; opacity: 0; z-index: 200; display: flex; justify-content: center; align-items: center; }
+        .spark-active { animation: hit-burst 0.5s ease-out; }
+        @keyframes hit-burst { 0% { transform: scale(0); opacity: 1; } 100% { transform: scale(4); opacity: 0; } }
+
+        .btn-action { width: 100%; padding: 15px; border: none; border-radius: 15px; background: linear-gradient(90deg, var(--p1-main), #ff8c00); color: #fff; font-weight: 900; cursor: pointer; margin-top: 20px; }
+    </style>
+</head>
+<body class="p1-turn">
+
+    <div id="main-stage" class="stage-background">
+        <div class="sky-vfx"></div>
+        <div id="actor-wrap" class="actor-container">
+            <div id="char-X" class="actor swordman">
+                <svg viewBox="0 0 400 600">
+                    <defs><linearGradient id="hairX" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#300" /><stop offset="60%" stop-color="#ff007a" /></linearGradient></defs>
+                    <path d="M120 80 Q200 -20 280 80 L350 550 Q200 500 50 550 Z" fill="url(#hairX)" />
+                    <path d="M165 170 L235 170 L260 580 L140 580 Z" fill="#0c0c0c" stroke="#ff007a" stroke-width="5" />
+                    <circle cx="185" cy="145" r="7" fill="#fff" />
+                    <circle cx="215" cy="145" r="7" fill="#fff" />
+                    <g transform="rotate(-20, 260, 350)">
+                        <rect x="250" y="40" width="20" height="400" rx="10" fill="#fff" />
+                        <rect x="240" y="40" width="40" height="400" rx="20" fill="rgba(255,0,122,0.3)" filter="blur(5px)" />
+                    </g>
+                </svg>
+            </div>
+            <div id="char-O" class="actor mage">
+                <svg viewBox="0 0 400 600">
+                    <path d="M110 130 Q200 30 290 130 L310 280 Q200 240 90 280 Z" fill="#050a20" stroke="#00f2ff" stroke-width="4" />
+                    <path d="M140 260 L260 260 L330 580 L70 580 Z" fill="#0a0a20" stroke="#00f2ff" stroke-width="5" />
+                    <g transform="translate(50, 100)">
+                        <rect x="0" y="0" width="10" height="300" fill="#00f2ff" />
+                        <circle cx="5" cy="0" r="15" fill="#fff" />
+                    </g>
+                </svg>
+            </div>
+            <div id="char-BOSS" class="actor boss-actor">
+                <!-- 重新設計的邪惡魔王：手持巨大能量鐮刀 -->
+                <svg viewBox="0 0 400 600">
+                    <defs>
+                        <linearGradient id="scytheGlow" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#9d00ff" />
+                            <stop offset="100%" stop-color="#ff00ff" />
+                        </linearGradient>
+                    </defs>
+                    <!-- 巨大鐮刀 (Scythe) -->
+                    <g transform="translate(50, 50) rotate(-10)">
+                        <rect x="280" y="0" width="15" height="500" fill="#222" stroke="#444" rx="5" /> <!-- 長柄 -->
+                        <path d="M290 50 Q100 0 -50 150 Q100 100 290 150 Z" fill="url(#scytheGlow)" opacity="0.9">
+                            <animate attributeName="opacity" values="0.7;1;0.7" dur="1s" repeatCount="indefinite" />
+                        </path>
+                    </g>
+                    <!-- 魔王主體 -->
+                    <path d="M80 180 L200 120 L320 180 L350 580 L200 520 L50 580 Z" fill="#050010" stroke="#9d00ff" stroke-width="2" />
+                    <!-- 披風 -->
+                    <path d="M80 180 Q200 150 320 180 L380 500 Q200 450 20 500 Z" fill="#0c001a" opacity="0.8" />
+                    <!-- 邪惡面具 -->
+                    <path d="M140 180 Q200 140 260 180 L240 260 L160 260 Z" fill="#111" stroke="#9d00ff" stroke-width="3" />
+                    <!-- 閃爍紅眼 -->
+                    <circle cx="175" cy="210" r="6" fill="#ff0044">
+                        <animate attributeName="r" values="5;7;5" dur="0.5s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="225" cy="210" r="6" fill="#ff0044">
+                        <animate attributeName="r" values="5;7;5" dur="0.5s" repeatCount="indefinite" />
+                    </circle>
+                    <!-- 胸口的能量核心 -->
+                    <polygon points="200,280 220,310 200,340 180,310" fill="#9d00ff">
+                        <animate attributeName="opacity" values="0.4;1;0.4" dur="2s" repeatCount="indefinite" />
+                        <animateTransform attributeName="transform" type="scale" from="1" to="1.2" additive="sum" dur="2s" repeatCount="indefinite" />
+                    </polygon>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <div id="hit-spark" class="hit-spark"></div>
+
+    <div id="constriction-layer" class="constriction-layer">
+        <div id="countdown-number">5</div>
+        <div class="circle-vfx"></div>
+    </div>
+
+    <div class="tape-container tape-top"><div class="tape-text" id="marquee-1"></div></div>
+    <div class="tape-container tape-bottom"><div class="tape-text" id="marquee-2" style="animation-direction: reverse;"></div></div>
+
+    <div class="settings-toggle" onclick="toggleSettings(true)">⚙️</div>
+
+    <div class="game-container">
+        <div class="vs-banner">
+            <div id="p-left-info" class="player-info p1-active">X 玩家</div>
+            <div id="p-right-info" class="player-info p2-active">O 玩家</div>
+        </div>
+        <div id="game-board"></div>
+    </div>
+
+    <div id="settingsOverlay" class="modal">
+        <div class="settings-card">
+            <h3 style="text-align:center; color:var(--p1-main);">戰場設定系統</h3>
+            <div style="margin-bottom:10px;"><label>規模</label><input type="number" id="sizeInput" value="5" style="width:100%;"></div>
+            <div style="margin-bottom:10px;"><label>連線數</label><input type="number" id="winInput" value="3" style="width:100%;"></div>
+            <div style="margin-bottom:10px;"><label>禁咒數</label><input type="number" id="blockInput" value="2" style="width:100%;"></div>
+            <div style="margin-bottom:20px;">
+                <label>戰鬥模式</label>
+                <select id="modeInput" style="width:100%;">
+                    <option value="pvp">PVP 玩家對決</option>
+                    <option value="pve" selected>PVE 討伐魔王</option>
+                </select>
+            </div>
+            <button class="btn-action" onclick="initGame()">重新構建戰場</button>
+        </div>
+    </div>
+
+    <div id="resultModal" class="modal">
+        <div style="text-align:center;">
+            <h1 id="winnerText" style="font-size:4rem;">WINNER</h1>
+            <button class="btn-action" onclick="initGame()">重新連線</button>
+        </div>
+    </div>
+
+    <script>
+        let board = [], size = 5, winNeeded = 3, totalBlocks = 2, currentBlocks = 0;
+        let isPVE = false, currentPlayer = 'X', gameActive = false, isSetupPhase = false;
+        let timerId = null, timeLeft = 5;
+        let playerSide = 'X'; 
+
+        function toggleSettings(show) { document.getElementById('settingsOverlay').style.display = show ? 'flex' : 'none'; }
+
+        function initGame() {
+            size = parseInt(document.getElementById('sizeInput').value) || 5;
+            winNeeded = parseInt(document.getElementById('winInput').value) || 3;
+            totalBlocks = parseInt(document.getElementById('blockInput').value) || 0;
+            isPVE = document.getElementById('modeInput').value === 'pve';
+            
+            toggleSettings(false);
+            document.getElementById('resultModal').style.display = 'none';
+            resetAnims();
+
+            board = Array(size).fill(null).map(() => Array(size).fill(''));
+            currentPlayer = 'X';
+            gameActive = true;
+            currentBlocks = 0;
+            isSetupPhase = (totalBlocks > 0);
+            
+            if(isPVE) {
+                playerSide = Math.random() > 0.5 ? 'X' : 'O';
+                document.getElementById('actor-wrap').classList.add('pve-mode');
+                document.getElementById('char-X').classList.toggle('player-actor', playerSide === 'X');
+                document.getElementById('char-O').classList.toggle('player-actor', playerSide === 'O');
+                document.getElementById('char-X').style.opacity = playerSide === 'X' ? 1 : 0;
+                document.getElementById('char-O').style.opacity = playerSide === 'O' ? 1 : 0;
+            } else {
+                document.getElementById('actor-wrap').classList.remove('pve-mode');
+                document.getElementById('char-X').classList.remove('player-actor');
+                document.getElementById('char-O').classList.remove('player-actor');
+                document.getElementById('char-X').style.opacity = 1;
+                document.getElementById('char-O').style.opacity = 1;
+            }
+            
+            clearInterval(timerId);
+            const container = document.getElementById('game-board');
+            container.innerHTML = '';
+            container.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+            
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.style.width = size > 6 ? '40px' : '60px';
+                    cell.style.height = size > 6 ? '40px' : '60px';
+                    cell.onclick = () => handleCellClick(r, c);
+                    container.appendChild(cell);
+                }
+            }
+            updateUI();
+        }
+
+        function resetAnims() { 
+            document.body.classList.remove('sw-attack', 'mg-attack', 'boss-attack', 'shake-active', 'glitch-active'); 
+        }
+
+        function handleCellClick(r, c) {
+            if (!gameActive || board[r][c] !== '') return;
+            if (isSetupPhase) {
+                board[r][c] = 'B';
+                document.getElementsByClassName('cell')[r * size + c].classList.add('blocked');
+                if (++currentBlocks >= totalBlocks) { isSetupPhase = false; currentPlayer = 'X'; startTurn(); } 
+                else { currentPlayer = (currentPlayer === 'X' ? 'O' : 'X'); updateUI(); }
+            } else {
+                if (isPVE && currentPlayer !== playerSide) return;
+                executeMove(r, c);
+            }
+        }
+
+        function executeMove(r, c) {
+            let pClass = '';
+            if(isPVE) {
+                pClass = (currentPlayer === playerSide) ? (playerSide === 'X' ? 'sw-attack' : 'mg-attack') : 'boss-attack';
+            } else {
+                pClass = (currentPlayer === 'X' ? 'sw-attack' : 'mg-attack');
+            }
+
+            resetAnims();
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    document.body.classList.add(pClass, 'shake-active', 'glitch-active');
+                    const rect = document.getElementsByClassName('cell')[r * size + c].getBoundingClientRect();
+                    const spark = document.getElementById('hit-spark');
+                    spark.style.left = `${rect.left + rect.width/2 - 100}px`;
+                    spark.style.top = `${rect.top + rect.height/2 - 100}px`;
+                    spark.classList.remove('spark-active');
+                    void spark.offsetWidth;
+                    spark.classList.add('spark-active');
+                    setTimeout(resetAnims, 700);
+                });
+            });
+
+            board[r][c] = currentPlayer;
+            const targetCell = document.getElementsByClassName('cell')[r * size + c];
+            targetCell.innerText = (isPVE && currentPlayer !== playerSide) ? "☠️" : currentPlayer;
+            targetCell.classList.add('occupied', (isPVE && currentPlayer !== playerSide) ? 'boss' : currentPlayer.toLowerCase());
+            
+            if (checkWin(r, c, currentPlayer)) {
+                setTimeout(() => endGame(currentPlayer), 400);
+            } else if (board.flat().every(v => v !== '' && v !== 'B')) {
+                setTimeout(() => endGame('DRAW'), 400);
+            } else {
+                currentPlayer = (currentPlayer === 'X' ? 'O' : 'X');
+                startTurn();
+            }
+        }
+
+        function startTurn() {
+            if (!gameActive || isSetupPhase) return;
+            clearInterval(timerId);
+            timeLeft = 5;
+            updateUI();
+            const layer = document.getElementById('constriction-layer');
+            const countNum = document.getElementById('countdown-number');
+            countNum.innerText = timeLeft;
+            layer.classList.remove('active-timer');
+            void layer.offsetWidth;
+            layer.classList.add('active-timer');
+
+            timerId = setInterval(() => {
+                timeLeft--;
+                if (timeLeft >= 0) countNum.innerText = timeLeft;
+                if (timeLeft <= 0) { clearInterval(timerId); autoRandomMove(); }
+            }, 1000);
+
+            if (isPVE && currentPlayer !== playerSide) setTimeout(aiMove, 600);
+        }
+
+        function autoRandomMove() {
+            if (!gameActive) return;
+            let empty = [];
+            for(let r=0; r<size; r++) for(let c=0; c<size; c++) if(board[r][c] === '') empty.push({r,c});
+            if(empty.length) {
+                const m = empty[Math.floor(Math.random()*empty.length)];
+                executeMove(m.r, m.c);
+            }
+        }
+
+        /**
+         * 強化後的 AI：侵略性與防禦性兼備
+         */
+        function aiMove() { 
+            if (!gameActive) return;
+            const me = currentPlayer;
+            const enemy = playerSide;
+
+            // 1. 優先：檢查是否可以這回合直接贏球 (侵略)
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (board[r][c] === '') {
+                        board[r][c] = me;
+                        if (checkWin(r, c, me)) { board[r][c] = ''; executeMove(r, c); return; }
+                        board[r][c] = '';
+                    }
+                }
+            }
+
+            // 2. 次要：檢查玩家是否下回合會贏，如果是，則進行封堵 (防守即攻擊)
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (board[r][c] === '') {
+                        board[r][c] = enemy;
+                        if (checkWin(r, c, enemy)) { board[r][c] = ''; executeMove(r, c); return; }
+                        board[r][c] = '';
+                    }
+                }
+            }
+
+            // 3. 策略性：選擇靠近中心的位置，或者隨機選擇
+            let empty = [];
+            const center = Math.floor(size / 2);
+            for(let r=0; r<size; r++) {
+                for(let c=0; c<size; c++) {
+                    if(board[r][c] === '') {
+                        // 計算到中心的距離，越近分數越高
+                        const score = 100 - (Math.abs(r - center) + Math.abs(c - center));
+                        empty.push({r, c, score});
+                    }
+                }
+            }
+
+            if(empty.length) {
+                // 排序並取最高分的幾個位置中隨機一個，增加不可預測性
+                empty.sort((a, b) => b.score - a.score);
+                const bestMoves = empty.filter(m => m.score === empty[0].score);
+                const choice = bestMoves[Math.floor(Math.random() * bestMoves.length)];
+                executeMove(choice.r, choice.c);
+            }
+        }
+
+        function checkWin(r, c, p) {
+            const dirs = [[[0,1],[0,-1]], [[1,0],[-1,0]], [[1,1],[-1,-1]], [[1,-1],[-1,1]]];
+            for(let d of dirs) {
+                let count = 1;
+                for(let [dr,dc] of d) {
+                    let nr=r+dr, nc=c+dc;
+                    while(nr>=0 && nr<size && nc>=0 && nc<size && board[nr][nc] === p) { count++; nr+=dr; nc+=dc; }
+                }
+                if(count >= winNeeded) return true;
+            }
+            return false;
+        }
+
+        function updateUI() {
+            const leftInfo = document.getElementById('p-left-info');
+            const rightInfo = document.getElementById('p-right-info');
+            
+            if (!leftInfo || !rightInfo) return;
+
+            if(isPVE) {
+                leftInfo.innerText = '邪惡魔王';
+                leftInfo.style.borderColor = 'var(--boss-main)';
+                leftInfo.style.color = 'var(--boss-main)';
+                
+                rightInfo.innerText = '討伐勇者';
+                const playerColor = playerSide === 'X' ? 'var(--p1-main)' : 'var(--p2-main)';
+                rightInfo.style.borderColor = playerColor;
+                rightInfo.style.color = playerColor;
+
+                const isPlayerTurn = (currentPlayer === playerSide);
+                leftInfo.classList.toggle('p1-active', !isPlayerTurn);
+                rightInfo.classList.toggle('p2-active', isPlayerTurn);
+                
+                const currentAccent = isPlayerTurn ? playerColor : 'var(--boss-main)';
+                document.body.style.setProperty('--current-color', currentAccent);
+            } else {
+                leftInfo.innerText = 'X 玩家';
+                leftInfo.style.borderColor = ''; leftInfo.style.color = '';
+                rightInfo.innerText = 'O 玩家';
+                rightInfo.style.borderColor = ''; rightInfo.style.color = '';
+                
+                const isP1Turn = currentPlayer === 'X';
+                leftInfo.classList.toggle('p1-active', isP1Turn);
+                rightInfo.classList.toggle('p2-active', !isP1Turn);
+                document.body.style.setProperty('--current-color', isP1Turn ? 'var(--p1-main)' : 'var(--p2-main)');
+            }
+            
+            document.body.className = (currentPlayer === 'X') ? 'p1-turn' : 'p2-turn';
+            if(isPVE) document.body.classList.add('pve-mode');
+
+            const charName = isPVE ? (currentPlayer === playerSide ? "勇者" : "魔王") : (currentPlayer === 'X' ? "劍士" : "魔法師");
+            const msg = isSetupPhase ? "警告：空間屏障構建中... " : `SYSTEM ALERT: [${charName}] 正在釋放侵略性的威壓... 殺氣騰騰... `;
+            const fullMsg = msg.repeat(20);
+            const mq1 = document.getElementById('marquee-1');
+            const mq2 = document.getElementById('marquee-2');
+            if(mq1) mq1.innerText = fullMsg;
+            if(mq2) mq2.innerText = fullMsg;
+        }
+
+        function endGame(w) {
+            gameActive = false; clearInterval(timerId);
+            document.getElementById('constriction-layer').classList.remove('active-timer');
+            const txt = document.getElementById('winnerText');
+            if(w === 'DRAW') txt.innerText = "因果平局";
+            else {
+                if(isPVE) txt.innerText = (w === playerSide) ? "勇者 獲勝" : "魔王 毀滅世界";
+                else txt.innerText = (w === 'X' ? "劍士" : "魔法師") + " 獲勝";
+            }
+            txt.style.color = 'var(--current-color)';
+            document.getElementById('resultModal').style.display = 'flex';
+        }
+        
+        initGame();
+    </script>
+</body>
+</html>
