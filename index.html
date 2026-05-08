@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>劍與魔法：幻彩賽博宿命對決</title>
+    <title>過三關：戰鬥幻境</title>
     <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -16,6 +16,7 @@
             --bg-deep: #050512;
             --space-hue: 280deg;
             --current-color: var(--p1-main);
+            --board-size: 5;
         }
 
         body {
@@ -33,6 +34,24 @@
         }
 
         body.glitch-active { filter: contrast(1.2) saturate(1.5); }
+
+        /* 強制橫向螢幕鎖定層 */
+        #orientation-warning {
+            display: none;
+            position: fixed; inset: 0; z-index: 10000;
+            background: rgba(5, 5, 18, 0.98); color: #fff;
+            flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; font-size: 2.5rem; font-weight: 900;
+            backdrop-filter: blur(20px);
+        }
+        @keyframes rotate-phone {
+            0% { transform: rotate(0deg); }
+            50% { transform: rotate(-90deg); }
+            100% { transform: rotate(-90deg); }
+        }
+        @media (orientation: portrait) {
+            #orientation-warning { display: flex; }
+        }
 
         .stage-background {
             position: fixed;
@@ -74,6 +93,24 @@
             width: 300px; height: 450px;
             transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             filter: drop-shadow(0 0 20px rgba(0,0,0,0.8));
+        }
+
+        /* 角色專屬閃爍動畫 */
+        .swordman svg { animation: blink-p1 2s infinite alternate ease-in-out; }
+        .mage svg { animation: blink-p2 2.3s infinite alternate ease-in-out; }
+        .boss-actor svg { animation: blink-boss 1.8s infinite alternate ease-in-out; }
+
+        @keyframes blink-p1 {
+            0% { filter: drop-shadow(0 0 5px var(--p1-main)) brightness(1); }
+            100% { filter: drop-shadow(0 0 25px var(--p1-glow)) brightness(1.3); }
+        }
+        @keyframes blink-p2 {
+            0% { filter: drop-shadow(0 0 5px var(--p2-main)) brightness(1); }
+            100% { filter: drop-shadow(0 0 25px var(--p2-glow)) brightness(1.3); }
+        }
+        @keyframes blink-boss {
+            0% { filter: drop-shadow(0 0 5px var(--boss-main)) brightness(1); }
+            100% { filter: drop-shadow(0 0 25px var(--boss-glow)) brightness(1.3); }
         }
 
         /* 默認位置 (PVP) */
@@ -125,7 +162,7 @@
         }
 
         .game-container { position: relative; z-index: 100; display: flex; flex-direction: column; align-items: center; }
-        .vs-banner { display: flex; gap: 40px; margin-bottom: 20px; }
+        .vs-banner { display: flex; gap: 40px; margin-bottom: 15px; }
         .player-info {
             background: rgba(10, 10, 35, 0.8); padding: 12px 35px; border-radius: 40px;
             border: 2px solid rgba(255,255,255,0.1); backdrop-filter: blur(15px);
@@ -136,17 +173,25 @@
         .p1-turn .p1-active { border-color: var(--current-color); box-shadow: 0 0 30px var(--current-color); transform: scale(1.1); }
         .p2-turn .p2-active { border-color: var(--current-color); box-shadow: 0 0 30px var(--current-color); transform: scale(1.1); }
 
+        /* 自適應棋盤大小 */
         #game-board {
-            display: grid; gap: 10px; padding: 20px;
+            display: grid; gap: 6px; padding: 15px;
             background: rgba(255,255,255,0.03); border-radius: 24px;
             border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(20px);
             box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
+            width: min(80vw, 55vh);
+            height: min(80vw, 55vh);
+            grid-template-rows: repeat(var(--board-size), 1fr);
+            grid-template-columns: repeat(var(--board-size), 1fr);
         }
         .cell {
-            background: rgba(0,0,0,0.7); border-radius: 12px;
+            background: rgba(0,0,0,0.7); border-radius: 8px;
             display: flex; justify-content: center; align-items: center;
             cursor: pointer; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             border: 1px solid rgba(255,255,255,0.08); color: #fff; font-weight: 900;
+            width: 100%; height: 100%;
+            /* 根據棋盤大小自動縮放字體 */
+            font-size: calc(min(80vw, 55vh) / var(--board-size) * 0.5);
         }
         .cell:hover:not(.occupied):not(.blocked) { 
             background: rgba(255,255,255,0.1); 
@@ -158,10 +203,13 @@
         .cell.occupied.boss { color: var(--boss-main); text-shadow: 0 0 20px var(--boss-glow); animation: cell-pop 0.4s both; }
         @keyframes cell-pop { 0% { transform: scale(0) rotate(-45deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
         
-        .cell.blocked::after { content: "封"; color: #ff0044; font-size: 1.2rem; filter: drop-shadow(0 0 5px #ff0044); }
+        .cell.blocked::after { 
+            content: "封"; color: #ff0044; filter: drop-shadow(0 0 5px #ff0044); 
+            font-size: calc(min(80vw, 55vh) / var(--board-size) * 0.4);
+        }
 
         .settings-toggle {
-            position: fixed; top: 30px; right: 30px; width: 55px; height: 55px;
+            position: fixed; top: 65px; right: 30px; width: 55px; height: 55px;
             background: rgba(255,255,255,0.05); border-radius: 18px;
             display: flex; justify-content: center; align-items: center;
             cursor: pointer; z-index: 250; font-size: 1.6rem; border: 1px solid rgba(255,255,255,0.1);
@@ -173,16 +221,43 @@
             display: none; justify-content: center; align-items: center; z-index: 500;
             backdrop-filter: blur(10px);
         }
+
+        /* 放大版設定介面 */
         .settings-card {
             background: #0a0a1a; padding: 40px; border-radius: 32px; border: 2px solid var(--p1-main);
-            width: 340px; color: #fff;
+            width: 420px; max-width: 90%; color: #fff; box-shadow: 0 0 50px rgba(0,0,0,0.8);
         }
+        .form-group {
+            margin-bottom: 24px;
+            text-align: left;
+            width: 100%;
+        }
+        .form-group label {
+            display: block; margin-bottom: 8px; font-size: 1.2rem; color: #ddd; font-weight: 700; letter-spacing: 1px;
+        }
+        .form-group input, .form-group select {
+            width: 100%; padding: 16px 18px; font-size: 1.3rem; font-weight: bold;
+            background: rgba(255, 255, 255, 0.08); border: 2px solid rgba(255, 255, 255, 0.2);
+            color: #fff; border-radius: 12px; outline: none; box-sizing: border-box;
+            transition: 0.3s; appearance: none;
+        }
+        .form-group select {
+            background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E');
+            background-repeat: no-repeat; background-position: right 18px top 50%; background-size: 14px auto;
+        }
+        .form-group select option { background: #111; color: #fff; }
+        .form-group input:focus, .form-group select:focus {
+            border-color: var(--p1-main); box-shadow: 0 0 15px rgba(255, 0, 122, 0.5); background: rgba(255, 255, 255, 0.15);
+        }
+        .btn-action { width: 100%; padding: 18px; border: none; border-radius: 15px; background: linear-gradient(90deg, var(--p1-main), #ff8c00); color: #fff; font-size: 1.3rem; font-weight: 900; cursor: pointer; margin-top: 15px; transition: 0.3s; }
+        .btn-action:hover { filter: brightness(1.2); transform: scale(1.02); }
 
         .tape-container { position: fixed; width: 100%; height: 42px; background: rgba(0,0,0,0.85); display: flex; align-items: center; z-index: 80; overflow: hidden; border-top: 2px solid var(--current-color); border-bottom: 2px solid var(--current-color); transition: border-color 0.4s; }
         .tape-top { top: 0; } .tape-bottom { bottom: 0; }
         .tape-text { white-space: nowrap; animation: marquee 50s linear infinite; font-size: 0.95rem; font-weight: 800; letter-spacing: 1px; color: var(--current-color); opacity: 0.8; }
         @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 
+        /* 倒數特效 */
         .constriction-layer { position: fixed; inset: 0; pointer-events: none; z-index: 40; display: flex; justify-content: center; align-items: center; }
         .circle-vfx { 
             width: 700px; height: 700px; 
@@ -194,6 +269,8 @@
         .active-timer .circle-vfx { animation: shrink-energy 5s cubic-bezier(0.4, 0, 1, 1) forwards; }
         @keyframes shrink-energy { 
             0% { transform: scale(1.8); opacity: 0; border-width: 20px; } 
+            10% { opacity: 1; }
+            90% { opacity: 1; }
             100% { transform: scale(0.05); opacity: 0; border-width: 2px; } 
         }
 
@@ -203,16 +280,27 @@
             z-index: 45; text-shadow: 0 0 40px var(--current-color);
         }
         .active-timer #countdown-number { animation: num-pulse 1s linear infinite; }
-        @keyframes num-pulse { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1.5); opacity: 0; } }
+        @keyframes num-pulse { 
+            0% { transform: scale(0.8); opacity: 0; } 
+            20% { opacity: 0.8; }
+            80% { opacity: 0.8; }
+            100% { transform: scale(1.5); opacity: 0; } 
+        }
 
         .hit-spark { position: fixed; width: 200px; height: 200px; background: radial-gradient(circle, #fff 0%, var(--current-color) 30%, transparent 70%); border-radius: 50%; pointer-events: none; opacity: 0; z-index: 200; display: flex; justify-content: center; align-items: center; }
         .spark-active { animation: hit-burst 0.5s ease-out; }
         @keyframes hit-burst { 0% { transform: scale(0); opacity: 1; } 100% { transform: scale(4); opacity: 0; } }
-
-        .btn-action { width: 100%; padding: 15px; border: none; border-radius: 15px; background: linear-gradient(90deg, var(--p1-main), #ff8c00); color: #fff; font-weight: 900; cursor: pointer; margin-top: 20px; }
     </style>
 </head>
 <body class="p1-turn">
+
+    <div id="orientation-warning">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--p1-main)" stroke-width="2" style="width:120px;height:120px;margin-bottom:30px;animation: rotate-phone 2s infinite ease-in-out;">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+            <line x1="12" y1="18" x2="12.01" y2="18"></line>
+        </svg>
+        <p style="margin:0;">空間維度異常！<br><span style="font-size:1.4rem; color:var(--p2-main);">請將裝置橫向擺放以接入戰鬥幻境</span></p>
+    </div>
 
     <div id="main-stage" class="stage-background">
         <div class="sky-vfx"></div>
@@ -220,6 +308,15 @@
             <div id="char-X" class="actor swordman">
                 <svg viewBox="0 0 400 600">
                     <defs><linearGradient id="hairX" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#300" /><stop offset="60%" stop-color="#ff007a" /></linearGradient></defs>
+                    
+                    <g fill="var(--p1-glow)">
+                        <circle cx="150" cy="550" r="6" opacity="0"><animate attributeName="cy" values="550;300" dur="3s" repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;0.8;0" keyTimes="0;0.2;0.8;1" dur="3s" repeatCount="indefinite" /><animate attributeName="r" values="6;2" dur="3s" repeatCount="indefinite" /></circle>
+                        <circle cx="250" cy="580" r="4" opacity="0"><animate attributeName="cy" values="580;350" dur="2.5s" begin="0.5s" repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;0.8;0" keyTimes="0;0.2;0.8;1" dur="2.5s" begin="0.5s" repeatCount="indefinite" /><animate attributeName="r" values="4;1" dur="2.5s" begin="0.5s" repeatCount="indefinite" /></circle>
+                        <circle cx="100" cy="500" r="8" opacity="0"><animate attributeName="cy" values="500;200" dur="4s" begin="1.2s" repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;0.8;0" keyTimes="0;0.2;0.8;1" dur="4s" begin="1.2s" repeatCount="indefinite" /><animate attributeName="r" values="8;3" dur="4s" begin="1.2s" repeatCount="indefinite" /></circle>
+                        <circle cx="300" cy="520" r="5" opacity="0"><animate attributeName="cy" values="520;250" dur="3.5s" begin="1.8s" repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;0.8;0" keyTimes="0;0.2;0.8;1" dur="3.5s" begin="1.8s" repeatCount="indefinite" /><animate attributeName="r" values="5;2" dur="3.5s" begin="1.8s" repeatCount="indefinite" /></circle>
+                        <circle cx="200" cy="560" r="7" opacity="0"><animate attributeName="cy" values="560;280" dur="3.2s" begin="2.2s" repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;0.8;0" keyTimes="0;0.2;0.8;1" dur="3.2s" begin="2.2s" repeatCount="indefinite" /><animate attributeName="r" values="7;2" dur="3.2s" begin="2.2s" repeatCount="indefinite" /></circle>
+                    </g>
+
                     <path d="M120 80 Q200 -20 280 80 L350 550 Q200 500 50 550 Z" fill="url(#hairX)" />
                     <path d="M165 170 L235 170 L260 580 L140 580 Z" fill="#0c0c0c" stroke="#ff007a" stroke-width="5" />
                     <circle cx="185" cy="145" r="7" fill="#fff" />
@@ -232,6 +329,14 @@
             </div>
             <div id="char-O" class="actor mage">
                 <svg viewBox="0 0 400 600">
+                    <g fill="var(--p2-glow)">
+                        <circle cx="150" cy="550" r="6" opacity="0"><animate attributeName="cy" values="550;300" dur="3s" repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;0.8;0" keyTimes="0;0.2;0.8;1" dur="3s" repeatCount="indefinite" /><animate attributeName="r" values="6;2" dur="3s" repeatCount="indefinite" /></circle>
+                        <circle cx="250" cy="580" r="4" opacity="0"><animate attributeName="cy" values="580;350" dur="2.5s" begin="0.5s" repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;0.8;0" keyTimes="0;0.2;0.8;1" dur="2.5s" begin="0.5s" repeatCount="indefinite" /><animate attributeName="r" values="4;1" dur="2.5s" begin="0.5s" repeatCount="indefinite" /></circle>
+                        <circle cx="100" cy="500" r="8" opacity="0"><animate attributeName="cy" values="500;200" dur="4s" begin="1.2s" repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;0.8;0" keyTimes="0;0.2;0.8;1" dur="4s" begin="1.2s" repeatCount="indefinite" /><animate attributeName="r" values="8;3" dur="4s" begin="1.2s" repeatCount="indefinite" /></circle>
+                        <circle cx="300" cy="520" r="5" opacity="0"><animate attributeName="cy" values="520;250" dur="3.5s" begin="1.8s" repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;0.8;0" keyTimes="0;0.2;0.8;1" dur="3.5s" begin="1.8s" repeatCount="indefinite" /><animate attributeName="r" values="5;2" dur="3.5s" begin="1.8s" repeatCount="indefinite" /></circle>
+                        <circle cx="200" cy="560" r="7" opacity="0"><animate attributeName="cy" values="560;280" dur="3.2s" begin="2.2s" repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;0.8;0" keyTimes="0;0.2;0.8;1" dur="3.2s" begin="2.2s" repeatCount="indefinite" /><animate attributeName="r" values="7;2" dur="3.2s" begin="2.2s" repeatCount="indefinite" /></circle>
+                    </g>
+                    
                     <path d="M110 130 Q200 30 290 130 L310 280 Q200 240 90 280 Z" fill="#050a20" stroke="#00f2ff" stroke-width="4" />
                     <path d="M140 260 L260 260 L330 580 L70 580 Z" fill="#0a0a20" stroke="#00f2ff" stroke-width="5" />
                     <g transform="translate(50, 100)">
@@ -241,7 +346,6 @@
                 </svg>
             </div>
             <div id="char-BOSS" class="actor boss-actor">
-                <!-- 重新設計的邪惡魔王：手持巨大能量鐮刀 -->
                 <svg viewBox="0 0 400 600">
                     <defs>
                         <linearGradient id="scytheGlow" x1="0" y1="0" x2="1" y2="1">
@@ -249,27 +353,29 @@
                             <stop offset="100%" stop-color="#ff00ff" />
                         </linearGradient>
                     </defs>
-                    <!-- 巨大鐮刀 (Scythe) -->
+
+                    <g fill="var(--boss-glow)">
+                        <circle cx="150" cy="550" r="6" opacity="0"><animate attributeName="cy" values="550;300" dur="3s" repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;0.8;0" keyTimes="0;0.2;0.8;1" dur="3s" repeatCount="indefinite" /><animate attributeName="r" values="6;2" dur="3s" repeatCount="indefinite" /></circle>
+                        <circle cx="250" cy="580" r="4" opacity="0"><animate attributeName="cy" values="580;350" dur="2.5s" begin="0.5s" repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;0.8;0" keyTimes="0;0.2;0.8;1" dur="2.5s" begin="0.5s" repeatCount="indefinite" /><animate attributeName="r" values="4;1" dur="2.5s" begin="0.5s" repeatCount="indefinite" /></circle>
+                        <circle cx="100" cy="500" r="8" opacity="0"><animate attributeName="cy" values="500;200" dur="4s" begin="1.2s" repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;0.8;0" keyTimes="0;0.2;0.8;1" dur="4s" begin="1.2s" repeatCount="indefinite" /><animate attributeName="r" values="8;3" dur="4s" begin="1.2s" repeatCount="indefinite" /></circle>
+                        <circle cx="300" cy="520" r="5" opacity="0"><animate attributeName="cy" values="520;250" dur="3.5s" begin="1.8s" repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;0.8;0" keyTimes="0;0.2;0.8;1" dur="3.5s" begin="1.8s" repeatCount="indefinite" /><animate attributeName="r" values="5;2" dur="3.5s" begin="1.8s" repeatCount="indefinite" /></circle>
+                        <circle cx="200" cy="560" r="7" opacity="0"><animate attributeName="cy" values="560;280" dur="3.2s" begin="2.2s" repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;0.8;0" keyTimes="0;0.2;0.8;1" dur="3.2s" begin="2.2s" repeatCount="indefinite" /><animate attributeName="r" values="7;2" dur="3.2s" begin="2.2s" repeatCount="indefinite" /></circle>
+                    </g>
+
                     <g transform="translate(50, 50) rotate(-10)">
-                        <rect x="280" y="0" width="15" height="500" fill="#222" stroke="#444" rx="5" /> <!-- 長柄 -->
-                        <path d="M290 50 Q100 0 -50 150 Q100 100 290 150 Z" fill="url(#scytheGlow)" opacity="0.9">
+                        <rect x="280" y="0" width="15" height="500" fill="#222" stroke="#444" rx="5" /> <path d="M290 50 Q100 0 -50 150 Q100 100 290 150 Z" fill="url(#scytheGlow)" opacity="0.9">
                             <animate attributeName="opacity" values="0.7;1;0.7" dur="1s" repeatCount="indefinite" />
                         </path>
                     </g>
-                    <!-- 魔王主體 -->
                     <path d="M80 180 L200 120 L320 180 L350 580 L200 520 L50 580 Z" fill="#050010" stroke="#9d00ff" stroke-width="2" />
-                    <!-- 披風 -->
                     <path d="M80 180 Q200 150 320 180 L380 500 Q200 450 20 500 Z" fill="#0c001a" opacity="0.8" />
-                    <!-- 邪惡面具 -->
                     <path d="M140 180 Q200 140 260 180 L240 260 L160 260 Z" fill="#111" stroke="#9d00ff" stroke-width="3" />
-                    <!-- 閃爍紅眼 -->
                     <circle cx="175" cy="210" r="6" fill="#ff0044">
                         <animate attributeName="r" values="5;7;5" dur="0.5s" repeatCount="indefinite" />
                     </circle>
                     <circle cx="225" cy="210" r="6" fill="#ff0044">
                         <animate attributeName="r" values="5;7;5" dur="0.5s" repeatCount="indefinite" />
                     </circle>
-                    <!-- 胸口的能量核心 -->
                     <polygon points="200,280 220,310 200,340 180,310" fill="#9d00ff">
                         <animate attributeName="opacity" values="0.4;1;0.4" dur="2s" repeatCount="indefinite" />
                         <animateTransform attributeName="transform" type="scale" from="1" to="1.2" additive="sum" dur="2s" repeatCount="indefinite" />
@@ -301,13 +407,22 @@
 
     <div id="settingsOverlay" class="modal">
         <div class="settings-card">
-            <h3 style="text-align:center; color:var(--p1-main);">戰場設定系統</h3>
-            <div style="margin-bottom:10px;"><label>規模</label><input type="number" id="sizeInput" value="5" style="width:100%;"></div>
-            <div style="margin-bottom:10px;"><label>連線數</label><input type="number" id="winInput" value="3" style="width:100%;"></div>
-            <div style="margin-bottom:10px;"><label>禁咒數</label><input type="number" id="blockInput" value="2" style="width:100%;"></div>
-            <div style="margin-bottom:20px;">
+            <h3 style="text-align:center; color:var(--p1-main); font-size:1.8rem; margin-top:0;">戰場設定系統</h3>
+            <div class="form-group">
+                <label>規模 (例如 5 代表 5x5)</label>
+                <input type="number" id="sizeInput" value="5">
+            </div>
+            <div class="form-group">
+                <label>連線數</label>
+                <input type="number" id="winInput" value="4">
+            </div>
+            <div class="form-group">
+                <label>禁咒數 (最多為棋盤總格的10%)</label>
+                <input type="number" id="blockInput" value="2">
+            </div>
+            <div class="form-group">
                 <label>戰鬥模式</label>
-                <select id="modeInput" style="width:100%;">
+                <select id="modeInput">
                     <option value="pvp">PVP 玩家對決</option>
                     <option value="pve" selected>PVE 討伐魔王</option>
                 </select>
@@ -324,7 +439,29 @@
     </div>
 
     <script>
-        let board = [], size = 5, winNeeded = 3, totalBlocks = 2, currentBlocks = 0;
+        // 音效物件初始化
+        const bgmSfx = new Audio('https://actions.google.com/sounds/v1/science_fiction/sci_fi_hover_craft_fly_by.ogg');
+        bgmSfx.loop = true;
+        bgmSfx.volume = 0.4;
+        
+        const slashSfx = new Audio('https://actions.google.com/sounds/v1/weapons/blade_swish.ogg');
+        slashSfx.volume = 0.8;
+        
+        const magicSfx = new Audio('https://actions.google.com/sounds/v1/magic/magical_ping.ogg');
+        magicSfx.volume = 0.8;
+        
+        const bossSfx = new Audio('https://actions.google.com/sounds/v1/explosions/distant_explosion.ogg');
+        bossSfx.volume = 0.6;
+
+        function playSound(type) {
+            try {
+                if(type === 'slash') { slashSfx.currentTime = 0; slashSfx.play(); }
+                if(type === 'magic') { magicSfx.currentTime = 0; magicSfx.play(); }
+                if(type === 'boss')  { bossSfx.currentTime = 0; bossSfx.play(); }
+            } catch(e) { console.log('Audio playback prevented by browser'); }
+        }
+
+        let board = [], size = 5, winNeeded = 4, totalBlocks = 2, currentBlocks = 0;
         let isPVE = false, currentPlayer = 'X', gameActive = false, isSetupPhase = false;
         let timerId = null, timeLeft = 5;
         let playerSide = 'X'; 
@@ -332,9 +469,21 @@
         function toggleSettings(show) { document.getElementById('settingsOverlay').style.display = show ? 'flex' : 'none'; }
 
         function initGame() {
+            // 嘗試播放 BGM
+            bgmSfx.play().catch(e => console.log('BGM Autoplay prevented'));
+
             size = parseInt(document.getElementById('sizeInput').value) || 5;
-            winNeeded = parseInt(document.getElementById('winInput').value) || 3;
-            totalBlocks = parseInt(document.getElementById('blockInput').value) || 0;
+            winNeeded = parseInt(document.getElementById('winInput').value) || 4;
+            
+            // 寫入 CSS 變數以控制自適應大小
+            document.documentElement.style.setProperty('--board-size', size);
+
+            // 限制禁咒數量不多過棋盤格數的10％
+            let maxBlocks = Math.floor((size * size) * 0.1);
+            let rawBlocks = parseInt(document.getElementById('blockInput').value) || 0;
+            totalBlocks = Math.min(rawBlocks, maxBlocks);
+            document.getElementById('blockInput').value = totalBlocks; // 更新回界面顯示
+
             isPVE = document.getElementById('modeInput').value === 'pve';
             
             toggleSettings(false);
@@ -365,14 +514,11 @@
             clearInterval(timerId);
             const container = document.getElementById('game-board');
             container.innerHTML = '';
-            container.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
             
             for (let r = 0; r < size; r++) {
                 for (let c = 0; c < size; c++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
-                    cell.style.width = size > 6 ? '40px' : '60px';
-                    cell.style.height = size > 6 ? '40px' : '60px';
                     cell.onclick = () => handleCellClick(r, c);
                     container.appendChild(cell);
                 }
@@ -399,10 +545,18 @@
 
         function executeMove(r, c) {
             let pClass = '';
+            // 音效與動畫判定
             if(isPVE) {
-                pClass = (currentPlayer === playerSide) ? (playerSide === 'X' ? 'sw-attack' : 'mg-attack') : 'boss-attack';
+                if(currentPlayer === playerSide) {
+                    pClass = playerSide === 'X' ? 'sw-attack' : 'mg-attack';
+                    playSound(playerSide === 'X' ? 'slash' : 'magic');
+                } else {
+                    pClass = 'boss-attack';
+                    playSound('boss');
+                }
             } else {
-                pClass = (currentPlayer === 'X' ? 'sw-attack' : 'mg-attack');
+                pClass = currentPlayer === 'X' ? 'sw-attack' : 'mg-attack';
+                playSound(currentPlayer === 'X' ? 'slash' : 'magic');
             }
 
             resetAnims();
@@ -425,9 +579,10 @@
             targetCell.innerText = (isPVE && currentPlayer !== playerSide) ? "☠️" : currentPlayer;
             targetCell.classList.add('occupied', (isPVE && currentPlayer !== playerSide) ? 'boss' : currentPlayer.toLowerCase());
             
+            // 修正平局漏洞：確認棋盤上沒有空格 ('') 即可觸發平手
             if (checkWin(r, c, currentPlayer)) {
                 setTimeout(() => endGame(currentPlayer), 400);
-            } else if (board.flat().every(v => v !== '' && v !== 'B')) {
+            } else if (!board.flat().includes('')) {
                 setTimeout(() => endGame('DRAW'), 400);
             } else {
                 currentPlayer = (currentPlayer === 'X' ? 'O' : 'X');
@@ -450,20 +605,20 @@
             timerId = setInterval(() => {
                 timeLeft--;
                 if (timeLeft >= 0) countNum.innerText = timeLeft;
-                if (timeLeft <= 0) { clearInterval(timerId); autoRandomMove(); }
+                if (timeLeft <= 0) { 
+                    clearInterval(timerId); 
+                    skipTurn(); // 倒數結束不幫玩家下，跳到下位玩家操作
+                }
             }, 1000);
 
             if (isPVE && currentPlayer !== playerSide) setTimeout(aiMove, 600);
         }
 
-        function autoRandomMove() {
+        // 跳過回合機制
+        function skipTurn() {
             if (!gameActive) return;
-            let empty = [];
-            for(let r=0; r<size; r++) for(let c=0; c<size; c++) if(board[r][c] === '') empty.push({r,c});
-            if(empty.length) {
-                const m = empty[Math.floor(Math.random()*empty.length)];
-                executeMove(m.r, m.c);
-            }
+            currentPlayer = (currentPlayer === 'X' ? 'O' : 'X');
+            startTurn();
         }
 
         /**
@@ -581,7 +736,9 @@
             gameActive = false; clearInterval(timerId);
             document.getElementById('constriction-layer').classList.remove('active-timer');
             const txt = document.getElementById('winnerText');
-            if(w === 'DRAW') txt.innerText = "因果平局";
+            if(w === 'DRAW') {
+                txt.innerText = isPVE ? "平手" : "因果平局"; 
+            }
             else {
                 if(isPVE) txt.innerText = (w === playerSide) ? "勇者 獲勝" : "魔王 毀滅世界";
                 else txt.innerText = (w === 'X' ? "劍士" : "魔法師") + " 獲勝";
